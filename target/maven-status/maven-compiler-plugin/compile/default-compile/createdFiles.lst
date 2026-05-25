@@ -1,0 +1,12 @@
+com/musicchain/model/Song$Contributor.class
+com/musicchain/service/GraphService$PathNode.class
+com/musicchain/model/ChainStep.class
+com/musicchain/config/CacheConfig.class
+com/musicchain/controller/GameController.class
+com/musicchain/model/Person.class
+com/musicchain/model/ChainResult.class
+com/musicchain/service/GraphService.class
+com/musicchain/service/GraphService$ValidationResult.class
+com/musicchain/MusicChainApplication.class
+com/musicchain/service/MusicBrainzService.class
+com/musicchain/model/Song.class
