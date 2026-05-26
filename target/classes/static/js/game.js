@@ -407,33 +407,65 @@
     );
 
     function addFromSearch(item) {
-        if (!state.selectedNodeId) return;
-        const selected = graph.nodes.get(state.selectedNodeId);
-        if (!selected) return;
+    if (!state.selectedNodeId) return;
+    const selected = graph.nodes.get(state.selectedNodeId);
+    if (!selected) return;
 
-        if (selected.type === 'person') {
-            // Adding a song
-            if (!graph.nodes.has(item.id)) {
-                const { x, y } = findPosition(selected.id);
-                addNodeToGraph('song', item, x, y);
-            }
-            addEdgeToGraph(selected.id, item.id);
-        } else {
-            // Adding a person to a song
-            if (!graph.nodes.has(item.id)) {
-                const { x, y } = findPosition(selected.id);
-                addNodeToGraph('person', item, x, y);
-            }
-            addEdgeToGraph(item.id, selected.id);
+    if (selected.type === 'person') {
+        // Adding a song — place it and link to selected person
+        if (!graph.nodes.has(item.id)) {
+            const { x, y } = findPosition(selected.id);
+            addNodeToGraph('song', item, x, y);
         }
-
-        dom.nodeSearchInput.value = '';
-        dom.nodeAutocomplete.classList.remove('open');
-        dom.nodeAutocomplete.innerHTML = '';
-
-        updateNodeCount();
-        checkWin();
+        addEdgeToGraph(selected.id, item.id);
+        // Auto-link to any other people already on the board
+        autoLinkSong(item);
+    } else {
+        // Adding a person — place it and link to selected song
+        if (!graph.nodes.has(item.id)) {
+            const { x, y } = findPosition(selected.id);
+            addNodeToGraph('person', item, x, y);
+        }
+        addEdgeToGraph(item.id, selected.id);
+        // Auto-link to any other songs already on the board
+        autoLinkPerson(item);
     }
+
+    dom.nodeSearchInput.value = '';
+    dom.nodeAutocomplete.classList.remove('open');
+    dom.nodeAutocomplete.innerHTML = '';
+
+    updateNodeCount();
+    checkWin();
+}
+
+// When a song is added, check all existing people on the board
+// and draw edges for anyone credited on that song
+function autoLinkSong(song) {
+    const contributorIds = new Set(
+        (song.contributors || []).map(c => c.person?.id).filter(Boolean)
+    );
+    for (const personId of graph.personIds()) {
+        if (contributorIds.has(personId)) {
+            addEdgeToGraph(personId, song.id);
+        }
+    }
+}
+
+// When a person is added, check all existing songs on the board
+// and draw edges for any song they appear on
+function autoLinkPerson(person) {
+    for (const songId of graph.songIds()) {
+        const songNode = graph.nodes.get(songId);
+        if (!songNode) continue;
+        const contributorIds = new Set(
+            (songNode.data.contributors || []).map(c => c.person?.id).filter(Boolean)
+        );
+        if (contributorIds.has(person.id)) {
+            addEdgeToGraph(person.id, songId);
+        }
+    }
+}
 
     // ─── Win Detection ────────────────────────────────────────────────────────
 
