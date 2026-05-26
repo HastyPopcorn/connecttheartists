@@ -755,8 +755,8 @@ body {
 .graph-container {
     position: relative;
     overflow: auto;
-    height: 56vh;
-    min-height: 360px;
+    height: 60vh;
+    min-height: 400px;
     border: 1px solid var(--border);
     border-radius: 12px;
     margin: 1rem 0;
@@ -778,75 +778,98 @@ body {
 /* ─── Graph Nodes ─────────────────────────────────────── */
 .graph-node {
     position: absolute;
-    width: 144px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
+    width: 148px;
+    padding: 10px 14px;
     border-radius: 8px;
-    cursor: pointer;
-    border: 2px solid transparent;
-    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-    font-size: 0.8rem;
-    user-select: none;
+    cursor: grab;
+    border: 2px solid var(--border);
+    background: var(--bg-card, #1e1e2e);
     box-sizing: border-box;
-    overflow: hidden;
+    user-select: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
 }
 
-.graph-node--person {
-    background: var(--bg-card, #1e1e2e);
-    border-color: var(--border);
-    min-height: 50px;
-}
+.graph-node:active { cursor: grabbing; }
 
 .graph-node--song {
-    background: var(--bg-secondary, #2a2a3e);
-    border-color: var(--border);
+    background: var(--bg-secondary, #16161e);
     border-style: dashed;
-    min-height: 42px;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
 }
 
 .graph-node--endpoint {
     border-color: var(--accent);
-    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 30%, transparent);
+    box-shadow: 0 0 0 1px var(--accent),
+                0 0 16px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .graph-node--selected {
     border-color: var(--accent) !important;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+    border-style: solid !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .graph-node--winner {
     border-color: #4ade80 !important;
-    box-shadow: 0 0 14px color-mix(in srgb, #4ade80 40%, transparent);
+    border-style: solid !important;
+    box-shadow: 0 0 0 2px #4ade80,
+                0 0 20px color-mix(in srgb, #4ade80 40%, transparent);
     animation: winner-pulse 1s ease-in-out 3;
 }
 
 @keyframes winner-pulse {
-    0%, 100% { box-shadow: 0 0 14px color-mix(in srgb, #4ade80 40%, transparent); }
-    50%       { box-shadow: 0 0 28px color-mix(in srgb, #4ade80 70%, transparent); }
+    0%, 100% { box-shadow: 0 0 0 2px #4ade80, 0 0 20px color-mix(in srgb, #4ade80 40%, transparent); }
+    50%       { box-shadow: 0 0 0 2px #4ade80, 0 0 36px color-mix(in srgb, #4ade80 65%, transparent); }
 }
 
-.gn-icon { font-size: 0.85rem; flex-shrink: 0; }
-.gn-name { font-size: 0.78rem; font-weight: 500; line-height: 1.2; overflow: hidden;
-           text-overflow: ellipsis; white-space: nowrap; width: 100%; }
-.gn-year { font-size: 0.68rem; opacity: 0.5; font-family: var(--font-mono); }
+.gn-type {
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.45;
+}
+
+.gn-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1.25;
+    word-break: break-word;
+    white-space: normal;
+}
+
+.gn-year {
+    font-size: 0.68rem;
+    font-family: var(--font-mono);
+    opacity: 0.4;
+}
 
 /* ─── Graph Edges ─────────────────────────────────────── */
 .graph-edge {
     stroke: var(--border);
-    stroke-width: 2;
-    opacity: 0.6;
+    stroke-width: 1.5;
+    opacity: 0.7;
 }
 
 .graph-edge--winner {
     stroke: #4ade80;
-    stroke-width: 3;
+    stroke-width: 2.5;
     opacity: 1;
 }
+
+/* ─── Action Panel ────────────────────────────────────── */
+.action-panel {
+    background: var(--bg-card, #1e1e2e);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+}
+
+.action-panel-inner { display: flex; flex-direction: column; gap: 0.75rem; }
+.action-instruction  { font-size: 0.9rem; color: var(--text-muted); }
+.action-buttons      { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 
 /* ─── Action Panel ────────────────────────────────────── */
 .action-panel {

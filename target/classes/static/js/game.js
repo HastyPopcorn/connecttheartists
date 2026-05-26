@@ -242,7 +242,7 @@
             el.style.transform = 'scale(0.5)';
         }
 
-        el.addEventListener('click', () => selectNode(data.id));
+        makeDraggable(el, data.id);
         dom.graphNodes.appendChild(el);
         state.nodeElements.set(data.id, el);
 
@@ -256,27 +256,26 @@
     }
 
     function createNodeEl(type, data) {
-        const el = document.createElement('div');
-        el.className = `graph-node graph-node--${type}`;
-        el.dataset.id = data.id;
+    const el = document.createElement('div');
+    el.className = `graph-node graph-node--${type}`;
+    el.dataset.id = data.id;
 
-        const isEndpoint = data.id === state.startPerson?.id || data.id === state.endPerson?.id;
-        if (isEndpoint) el.classList.add('graph-node--endpoint');
+    const isEndpoint = data.id === state.startPerson?.id || data.id === state.endPerson?.id;
+    if (isEndpoint) el.classList.add('graph-node--endpoint');
 
-        if (type === 'person') {
-            el.innerHTML = `
-                <span class="gn-icon">👤</span>
-                <span class="gn-name">${UI.escapeHtml(data.name)}</span>
-            `;
-        } else {
-            el.innerHTML = `
-                <span class="gn-icon">♪</span>
-                <span class="gn-name">${UI.escapeHtml(data.title)}</span>
-                ${data.releaseYear ? `<span class="gn-year">${UI.escapeHtml(data.releaseYear)}</span>` : ''}
-            `;
-        }
-        return el;
+    if (type === 'person') {
+        el.innerHTML = `
+            <span class="gn-type">Person</span>
+            <span class="gn-name">${UI.escapeHtml(data.name)}</span>
+        `;
+    } else {
+        el.innerHTML = `
+            <span class="gn-type">Song${data.releaseYear ? ' · ' + UI.escapeHtml(data.releaseYear) : ''}</span>
+            <span class="gn-name">${UI.escapeHtml(data.title)}</span>
+        `;
     }
+    return el;
+}
 
     function positionEl(el, x, y, type) {
         const w = 144;
@@ -625,6 +624,128 @@
         dom.gameSection.classList.add('hidden');
         dom.setupSection.classList.remove('hidden');
     }
+
+    // NODE_W/NODE_H used for centre-point calculations
+const NODE_W = 148;
+const NODE_H = 52; // approximate — tall enough for most labels
+
+function makeDraggable(el, nodeId) {
+    let dragging = false;
+    let moved    = false;
+    let startMouseX, startMouseY, startLeft, startTop;
+
+    el.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        dragging    = true;
+        moved       = false;
+        startMouseX = e.clientX;
+        startMouseY = e.clientY;
+        startLeft   = parseFloat(el.style.left) || 0;
+        startTop    = parseFloat(el.style.top)  || 0;
+        el.style.zIndex = '200';
+        e.preventDefault(); // prevent text selection
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const dx = e.clientX - startMouseX;
+        const dy = e.clientY - startMouseY;
+
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+        if (!moved) return;
+
+        // Clamp inside graph canvas
+        const newLeft = Math.max(0,               Math.min(GRAPH_W - NODE_W, startLeft + dx));
+        const newTop  = Math.max(0,               Math.min(GRAPH_H - NODE_H, startTop  + dy));
+
+        el.style.left = newLeft + 'px';
+        el.style.top  = newTop  + 'px';
+
+        // Keep the graph data in sync
+        const node = graph.nodes.get(nodeId);
+        if (node) {
+            node.x = newLeft + NODE_W / 2;
+            node.y = newTop  + NODE_H / 2;
+        }
+
+        refreshEdgesForNode(nodeId);
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        el.style.zIndex = '';
+
+        if (!moved) {
+            // Short tap with no movement = select
+            selectNode(nodeId);
+        } else {
+            // After drag: nudge apart any nodes that now overlap
+            resolveOverlaps();
+        }
+    });
+}
+
+function refreshEdgesForNode(nodeId) {
+    for (const [key, line] of state.edgeElements) {
+        const [p, s] = key.split('|');
+        if (p === nodeId || s === nodeId) refreshLine(line, p, s);
+    }
+}
+
+function resolveOverlaps() {
+    const nodes = [...graph.nodes.values()];
+    let changed = true;
+    let passes  = 0;
+
+    while (changed && passes < 10) {
+        changed = false;
+        passes++;
+        for (let i = 0; i < nodes.length; i++) {
+            for (let j = i + 1; j < nodes.length; j++) {
+                const a = nodes[i], b = nodes[j];
+                const dx = b.x - a.x, dy = b.y - a.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const minDist = NODE_MIN_GAP;
+
+                if (dist < minDist && dist > 0) {
+                    const push = (minDist - dist) / 2 + 1;
+                    const nx = dx / dist, ny = dy / dist;
+
+                    // Only push nodes that aren't being dragged (z-index 200)
+                    const elA = state.nodeElements.get(a.id);
+                    const elB = state.nodeElements.get(b.id);
+                    const aLocked = elA?.style.zIndex === '200';
+                    const bLocked = elB?.style.zIndex === '200';
+
+                    if (!aLocked) {
+                        a.x = Math.max(NODE_W / 2,       Math.min(GRAPH_W - NODE_W / 2, a.x - nx * push));
+                        a.y = Math.max(NODE_H / 2,       Math.min(GRAPH_H - NODE_H / 2, a.y - ny * push));
+                        if (elA) {
+                            elA.style.left = (a.x - NODE_W / 2) + 'px';
+                            elA.style.top  = (a.y - NODE_H / 2) + 'px';
+                        }
+                    }
+                    if (!bLocked) {
+                        b.x = Math.max(NODE_W / 2,       Math.min(GRAPH_W - NODE_W / 2, b.x + nx * push));
+                        b.y = Math.max(NODE_H / 2,       Math.min(GRAPH_H - NODE_H / 2, b.y + ny * push));
+                        if (elB) {
+                            elB.style.left = (b.x - NODE_W / 2) + 'px';
+                            elB.style.top  = (b.y - NODE_H / 2) + 'px';
+                        }
+                    }
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    // Refresh all edges after settling
+    for (const [key, line] of state.edgeElements) {
+        const [p, s] = key.split('|');
+        refreshLine(line, p, s);
+    }
+}
 
     dom.restartBtn.addEventListener('click', resetToSetup);
     dom.playAgainBtn.addEventListener('click', resetToSetup);
