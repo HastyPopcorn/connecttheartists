@@ -26,8 +26,11 @@ public class GraphService {
 
     private final MusicBrainzService musicBrainzService;
 
-    public GraphService(MusicBrainzService musicBrainzService) {
+    private final WikidataService wikidataService;
+
+    public GraphService(MusicBrainzService musicBrainzService, WikidataService wikidataService) {
         this.musicBrainzService = musicBrainzService;
+        this.wikidataService    = wikidataService;
     }
 
     /**
@@ -205,4 +208,16 @@ public class GraphService {
             return new ValidationResult(false, message, null, null);
         }
     }
+
+    private List<Song> getRecordingsForArtist(String artistId) {
+          List<Song> wikidata = wikidataService.getRecordingsForArtist(artistId);
+          if (!wikidata.isEmpty()) return wikidata;
+          return musicBrainzService.getRecordingsForArtist(artistId);
+      }
+
+    private Map<String, String> getArtistsForRecording(String recordingId) {
+          Map<String, String> wikidata = wikidataService.getArtistsForRecording(recordingId);
+          if (!wikidata.isEmpty()) return wikidata;
+          return musicBrainzService.getArtistsForRecording(recordingId);
+      }
 }

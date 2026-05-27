@@ -13,6 +13,7 @@
 
     <groupId>com.musicchain</groupId>
     <artifactId>music-chain</artifactId>
+    <packaging>jar</packaging>
     <version>1.0.0</version>
     <name>music-chain</name>
     <description>Music Chain Game - Connect musicians through songs</description>
@@ -66,14 +67,10 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <exclude>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                        </exclude>
-                    </excludes>
-                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>

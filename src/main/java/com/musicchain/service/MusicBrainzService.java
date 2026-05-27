@@ -50,28 +50,26 @@ public class MusicBrainzService {
      * Returns up to 10 results.
      */
     @Cacheable("artistSearch")
-    public List<Person> searchArtists(String query) {
-        try {
-            String url = BASE_URL + "/artist/?query=" + encode(query) + "&limit=10&fmt=json";
-            JsonNode root = fetchJson(url);
-            List<Person> results = new ArrayList<>();
-
-            if (root == null || !root.has("artists")) return results;
-
-            for (JsonNode node : root.get("artists")) {
-                Person p = new Person();
-                p.setId(node.path("id").asText());
-                p.setName(node.path("name").asText());
-                p.setType(node.path("type").asText("Unknown"));
-                p.setDisambiguation(node.path("disambiguation").asText(""));
-                results.add(p);
-            }
-            return results;
-        } catch (Exception e) {
-            log.error("Error searching artists for query: {}", query, e);
-            return Collections.emptyList();
+public List<Person> searchArtists(String query) {
+    try {
+        String url = BASE_URL + "/artist/?query=" + encode(query) + "&limit=10&fmt=json";
+        JsonNode root = fetchJson(url);
+        List<Person> results = new ArrayList<>();
+        if (root == null || !root.has("artists")) return results;
+        for (JsonNode node : root.get("artists")) {
+            Person p = new Person();
+            p.setId(node.path("id").asText());
+            p.setName(node.path("name").asText());
+            p.setType(node.path("type").asText("Unknown"));
+            p.setDisambiguation(node.path("disambiguation").asText(""));
+            results.add(p);
         }
+        return results;
+    } catch (Exception e) {
+        log.error("Error searching artists for query: {}", query, e);
+        return Collections.emptyList();
     }
+}
 
     /**
      * Get all recordings (songs) that an artist participated in.
@@ -366,4 +364,36 @@ public Person getArtistDetail(String artistId) {
             default -> mbRole;
         };
     }
+
+    @Cacheable("bandMembers")
+public List<Person> getBandMembers(String artistId) {
+    try {
+        String url = BASE_URL + "/artist/" + artistId + "?inc=artist-rels&fmt=json";
+        JsonNode root = fetchJson(url);
+        if (root == null) return Collections.emptyList();
+        List<Person> members = new ArrayList<>();
+        if (root.has("relations")) {
+            for (JsonNode rel : root.get("relations")) {
+                String type       = rel.path("type").asText("");
+                String targetType = rel.path("target-type").asText("");
+                if (!"artist".equals(targetType)) continue;
+                if (!type.toLowerCase().contains("member")) continue;
+                // Skip if the relation has an end date (former member)
+                if (!rel.path("ended").isMissingNode() && rel.path("ended").asBoolean()) continue;
+                JsonNode artist = rel.path("artist");
+                Person p = new Person();
+                p.setId(artist.path("id").asText());
+                p.setName(artist.path("name").asText());
+                p.setType("Person");
+                p.setDisambiguation(artist.path("disambiguation").asText(""));
+                members.add(p);
+            }
+        }
+        return members;
+    } catch (Exception e) {
+        log.error("Error fetching band members for: {}", artistId, e);
+        return Collections.emptyList();
+    }
 }
+}
+

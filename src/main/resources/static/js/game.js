@@ -17,67 +17,113 @@
     // ─── Graph ────────────────────────────────────────────────────────────────
 
     const graph = {
-        nodes: new Map(), // id → { id, type:'person'|'song', data, x, y }
-        edges: new Set(), // "personId|songId"
+    nodes: new Map(),
+    edges: new Set(),
+    memberEdges: new Set(),
 
-        add(type, data, x, y) {
-            if (this.nodes.has(data.id)) return false;
-            this.nodes.set(data.id, { id: data.id, type, data, x, y });
-            return true;
-        },
+    add(type, data, x, y) {
+        if (this.nodes.has(data.id)) return false;
+        this.nodes.set(data.id, { id: data.id, type, data, x, y });
+        return true;
+    },
 
-        link(personId, songId) {
-            this.edges.add(`${personId}|${songId}`);
-        },
+    link(personId, songId) {
+        this.edges.add(`${personId}|${songId}`);
+    },
 
-        neighbors(id) {
-            const result = [];
-            for (const edge of this.edges) {
-                const [p, s] = edge.split('|');
-                if (p === id) result.push(s);
-                else if (s === id) result.push(p);
+    linkMember(bandId, memberId) {
+        this.memberEdges.add(`${bandId}|${memberId}`);
+    },
+
+    neighbors(id) {
+        const result = [];
+        for (const edge of this.edges) {
+            const [p, s] = edge.split('|');
+            if (p === id) result.push(s);
+            else if (s === id) result.push(p);
+        }
+        for (const edge of this.memberEdges) {
+            const [band, member] = edge.split('|');
+            if (band === id) result.push(member);
+            else if (member === id) result.push(band);
+        }
+        return result;
+    },
+
+    personIds() {
+        return [...this.nodes.values()].filter(n => n.type === 'person').map(n => n.id);
+    },
+
+    songIds() {
+        return [...this.nodes.values()].filter(n => n.type === 'song').map(n => n.id);
+    },
+
+    findPath(startId, endId) {
+        if (!this.nodes.has(startId) || !this.nodes.has(endId)) return null;
+        const prev = new Map();
+        const visited = new Set([startId]);
+        const queue = [startId];
+        while (queue.length) {
+            const cur = queue.shift();
+            if (cur === endId) {
+                const path = [];
+                let node = endId;
+                while (node !== undefined) { path.unshift(node); node = prev.get(node); }
+                return path;
             }
-            return result;
-        },
-
-        personIds() {
-            return [...this.nodes.values()].filter(n => n.type === 'person').map(n => n.id);
-        },
-
-        songIds() {
-            return [...this.nodes.values()].filter(n => n.type === 'song').map(n => n.id);
-        },
-
-        // BFS — returns node id path if connected, null otherwise
-        findPath(startId, endId) {
-            if (!this.nodes.has(startId) || !this.nodes.has(endId)) return null;
-            const prev = new Map();
-            const visited = new Set([startId]);
-            const queue = [startId];
-            while (queue.length) {
-                const cur = queue.shift();
-                if (cur === endId) {
-                    const path = [];
-                    let node = endId;
-                    while (node !== undefined) { path.unshift(node); node = prev.get(node); }
-                    return path;
-                }
-                for (const nb of this.neighbors(cur)) {
-                    if (!visited.has(nb)) {
-                        visited.add(nb);
-                        prev.set(nb, cur);
-                        queue.push(nb);
-                    }
+            for (const nb of this.neighbors(cur)) {
+                if (!visited.has(nb)) {
+                    visited.add(nb);
+                    prev.set(nb, cur);
+                    queue.push(nb);
                 }
             }
-            return null;
-        },
+        }
+        return null;
+    },
 
-        clear() {
-            this.nodes.clear();
-            this.edges.clear();
-        },
-    };
+    clear() {
+        this.nodes.clear();
+        this.edges.clear();
+        this.memberEdges.clear();
+    },
+};
+
+
+function applyZoom() {
+    const transform = `scale(${zoomScale})`;
+    const origin    = `${zoomOriginX}px ${zoomOriginY}px`;
+    dom.graphNodes.style.transformOrigin = origin;
+    dom.graphNodes.style.transform       = transform;
+    dom.graphSvg.style.transformOrigin   = origin;
+    dom.graphSvg.style.transform         = transform;
+}
+
+// Attach wheel zoom once — persists across games
+document.getElementById('graph-container').addEventListener('wheel', (e) => {
+    e.preventDefault();
+
+    const MIN_ZOOM = 0.3;
+    const MAX_ZOOM = 2.5;
+    const ZOOM_SPEED = 0.001;
+
+    const container = dom.graphContainer;
+    const rect      = container.getBoundingClientRect();
+
+    // Mouse position relative to container
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const delta    = -e.deltaY * ZOOM_SPEED;
+    const newScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomScale + delta * zoomScale));
+
+    // Adjust origin so zoom centres on mouse position
+    zoomOriginX = mouseX;
+    zoomOriginY = mouseY;
+    zoomScale   = newScale;
+
+    applyZoom();
+}, { passive: false });
 
     // ─── State ────────────────────────────────────────────────────────────────
 
@@ -157,6 +203,35 @@
         p => selectSetupPerson('end', p)
     );
 
+    const membersBtn = document.getElementById('members-btn');
+
+function showMembersBtn(node) {
+    membersBtn.classList.remove('hidden');
+    membersBtn.onclick = async () => {
+        UI.showLoading('Fetching band members…');
+        try {
+            const members = await API.getBandMembers(node.data.id);
+            UI.hideLoading();
+            for (const member of members) {
+                if (!graph.nodes.has(member.id)) {
+                    const { x, y } = findPosition(node.id);
+                    addNodeToGraph('person', member, x, y);
+                }
+                addMemberEdge(node.data.id, member.id);
+            }
+            updateNodeCount();
+            checkWin();
+        } catch (e) {
+            UI.hideLoading();
+        }
+    };
+}
+
+function hideMembersBtn() {
+    membersBtn.classList.add('hidden');
+    membersBtn.onclick = null;
+}
+
     function selectSetupPerson(which, person) {
         state[which === 'start' ? 'startPerson' : 'endPerson'] = person;
         const nameEl = which === 'start' ? dom.startName : dom.endName;
@@ -192,9 +267,13 @@
 
     // ─── Game Start ───────────────────────────────────────────────────────────
 
-    const GRAPH_W = 1200;
-    const GRAPH_H = 560;
+    // Graph canvas matches container size dynamically
+    let GRAPH_W = 900;
+    let GRAPH_H = 500;
     const NODE_MIN_GAP = 160;
+    let zoomScale = 1;
+    let zoomOriginX = 0;
+    let zoomOriginY = 0;
 
     function startGame() {
         // Reset everything
@@ -203,15 +282,24 @@
         state.edgeElements.clear();
         state.selectedNodeId = null;
         state.complete = false;
+        state.memberEdgeElements = new Map(); // "bandId|memberId" → SVG element
 
-        dom.graphNodes.innerHTML = '';
-        dom.graphSvg.innerHTML = '';
-        dom.graphSvg.setAttribute('width', GRAPH_W);
+        // Size graph canvas to actual container
+        const container = dom.graphContainer;
+        GRAPH_W = container.clientWidth  || 900;
+        GRAPH_H = container.clientHeight || 500;
+
+        dom.graphSvg.setAttribute('width',  GRAPH_W);
         dom.graphSvg.setAttribute('height', GRAPH_H);
-        dom.graphSvg.style.width = GRAPH_W + 'px';
+        dom.graphSvg.style.width  = GRAPH_W + 'px';
         dom.graphSvg.style.height = GRAPH_H + 'px';
-        dom.graphNodes.style.width = GRAPH_W + 'px';
+        dom.graphNodes.style.width  = GRAPH_W + 'px';
         dom.graphNodes.style.height = GRAPH_H + 'px';
+
+        zoomScale   = 1;
+        zoomOriginX = 0;
+        zoomOriginY = 0;
+        applyZoom();
 
         dom.gameStartName.textContent = state.startPerson.name;
         dom.gameEndName.textContent = state.endPerson.name;
@@ -222,7 +310,7 @@
         dom.gameSection.classList.remove('hidden');
 
         // Place start and end people at opposite sides, vertically centred
-        addNodeToGraph('person', state.startPerson, 100, GRAPH_H / 2, true);
+        addNodeToGraph('person', state.startPerson, 100,           GRAPH_H / 2, true);
         addNodeToGraph('person', state.endPerson,   GRAPH_W - 100, GRAPH_H / 2, true);
 
         updateNodeCount();
@@ -277,13 +365,31 @@
     return el;
 }
 
-    function positionEl(el, x, y, type) {
-        const w = 144;
-        const h = type === 'person' ? 50 : 42;
-        el.style.position = 'absolute';
-        el.style.left = `${x - w / 2}px`;
-        el.style.top  = `${y - h / 2}px`;
-    }
+function addMemberEdge(bandId, memberId) {
+    const key = `${bandId}|${memberId}`;
+    if (state.memberEdgeElements.has(key)) return;
+    graph.linkMember(bandId, memberId);
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('class', 'graph-edge graph-edge--member');
+    refreshMemberLine(line, bandId, memberId);
+    dom.graphSvg.appendChild(line);
+    state.memberEdgeElements.set(key, line);
+}
+
+function refreshMemberLine(line, bandId, memberId) {
+    const band   = graph.nodes.get(bandId);
+    const member = graph.nodes.get(memberId);
+    if (!band || !member) return;
+    line.setAttribute('x1', band.x);   line.setAttribute('y1', band.y);
+    line.setAttribute('x2', member.x); line.setAttribute('y2', member.y);
+}
+
+   function positionEl(el, x, y, type) {
+    el.style.position = 'absolute';
+    el.style.left = `${x - NODE_W / 2}px`;
+    el.style.top  = `${y - NODE_H / 2}px`;
+}
 
     function addEdgeToGraph(personId, songId) {
         const key = `${personId}|${songId}`;
@@ -355,27 +461,34 @@
     }
 
     function updateActionPanel() {
-        dom.nodeSearchInput.value = '';
-
-        if (!state.selectedNodeId) {
-            dom.actionInstruction.textContent = 'Click a node to add connections';
-            dom.actionSearch.classList.add('hidden');
-            return;
-        }
-
-        const node = graph.nodes.get(state.selectedNodeId);
-        if (!node) return;
-
-        if (node.type === 'person') {
-            dom.actionInstruction.innerHTML =
-                `Add a song that <strong>${UI.escapeHtml(node.data.name)}</strong> contributed to:`;
-        } else {
-            dom.actionInstruction.innerHTML =
-                `Add a person who contributed to <strong>${UI.escapeHtml(node.data.title)}</strong>:`;
-        }
-        dom.actionSearch.classList.remove('hidden');
-        dom.nodeSearchInput.focus();
+    dom.nodeSearchInput.value = '';
+    if (!state.selectedNodeId) {
+        dom.actionInstruction.textContent = 'Click a node to add connections';
+        dom.actionSearch.classList.add('hidden');
+        hideMembersBtn();
+        return;
     }
+
+    const node = graph.nodes.get(state.selectedNodeId);
+    if (!node) return;
+
+    if (node.type === 'person') {
+        dom.actionInstruction.innerHTML =
+            `Add a song that <strong>${UI.escapeHtml(node.data.name)}</strong> contributed to:`;
+        // Show "Add Members" button only for groups
+        if (node.data.type === 'Group') {
+            showMembersBtn(node);
+        } else {
+            hideMembersBtn();
+        }
+    } else {
+        dom.actionInstruction.innerHTML =
+            `Add a person who contributed to <strong>${UI.escapeHtml(node.data.title)}</strong>:`;
+        hideMembersBtn();
+    }
+    dom.actionSearch.classList.remove('hidden');
+    dom.nodeSearchInput.focus();
+}
 
     // ─── Search ───────────────────────────────────────────────────────────────
 
@@ -722,6 +835,10 @@ function refreshEdgesForNode(nodeId) {
     for (const [key, line] of state.edgeElements) {
         const [p, s] = key.split('|');
         if (p === nodeId || s === nodeId) refreshLine(line, p, s);
+    }
+    for (const [key, line] of state.memberEdgeElements) {
+        const [b, m] = key.split('|');
+        if (b === nodeId || m === nodeId) refreshMemberLine(line, b, m);
     }
 }
 

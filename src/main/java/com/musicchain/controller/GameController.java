@@ -2,9 +2,14 @@ package com.musicchain.controller;
 
 import com.musicchain.model.*;
 import com.musicchain.service.GraphService;
+import com.musicchain.service.LastFmService;
 import com.musicchain.service.MusicBrainzService;
+import com.musicchain.service.WikidataService;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 import java.util.Map;
@@ -27,11 +32,17 @@ public class GameController {
 
     private final MusicBrainzService musicBrainzService;
     private final GraphService graphService;
+    private final WikidataService wikidataService;
+    private final LastFmService lastFmService;
 
-    public GameController(MusicBrainzService musicBrainzService, GraphService graphService) {
-        this.musicBrainzService = musicBrainzService;
-        this.graphService = graphService;
-    }
+   @Autowired
+    public GameController(MusicBrainzService musicBrainzService, GraphService graphService,
+                        WikidataService wikidataService, LastFmService lastFmService) {
+      this.musicBrainzService = musicBrainzService;
+      this.graphService       = graphService;
+      this.wikidataService    = wikidataService;
+      this.lastFmService      = lastFmService;
+  }
 
     /**
      * Search for people (artists, producers, songwriters, etc.) by name.
@@ -39,13 +50,28 @@ public class GameController {
      */
     @GetMapping("/search")
     public ResponseEntity<List<Person>> searchPeople(@RequestParam String q) {
-        if (q == null || q.trim().length() < 2) {
-            return ResponseEntity.badRequest().build();
+        if (q == null || q.trim().length() < 2) return ResponseEntity.badRequest().build();
+        String query = q.trim();
+
+        // Last.fm returns results ordered by listener count already
+        if (lastFmService.isConfigured()) {
+            List<Person> lastFmResults = lastFmService.searchArtists(query);
+            if (!lastFmResults.isEmpty()) return ResponseEntity.ok(lastFmResults);
         }
-        List<Person> results = musicBrainzService.searchArtists(q.trim());
-        return ResponseEntity.ok(results);
+        // Fallback to MusicBrainz
+        return ResponseEntity.ok(musicBrainzService.searchArtists(query));
     }
 
+
+    @GetMapping("/artist/{id}/members")
+public ResponseEntity<List<Person>> getBandMembers(@PathVariable String id) {
+    // Wikidata first — better band membership coverage
+    List<Person> members = wikidataService.getBandMembers(id);
+    if (members.isEmpty()) {
+        members = musicBrainzService.getBandMembers(id);
+    }
+    return ResponseEntity.ok(members);
+}
     /**
      * Get detailed info about a specific artist.
      */
@@ -147,4 +173,5 @@ public class GameController {
             "contributors", artistRoles
         ));
     }
+
 }

@@ -86,7 +86,12 @@ const API = (() => {
                 body: JSON.stringify({ startId, endId }),
             });
         },
+        getBandMembers(artistId) {
+            return request(`/artist/${artistId}/members`);
+      },
     };
+
+    
 })();
 
 // ─── Type definitions (JSDoc) ─────────────────────────────────────────────

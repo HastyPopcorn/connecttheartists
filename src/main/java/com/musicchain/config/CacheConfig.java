@@ -33,7 +33,14 @@ public class CacheConfig {
                 buildCache("artistDetail",      1000, 24, TimeUnit.HOURS),
                 buildCache("recordingDetail",   1000, 24, TimeUnit.HOURS),
                 buildCache("songSearch",        500,  30, TimeUnit.MINUTES),
-                buildCache("songSearchForArtist", 500, 30, TimeUnit.MINUTES)
+                buildCache("songSearchForArtist", 500, 30, TimeUnit.MINUTES),
+                buildCache("wikidataBandMembers",       500, 24, TimeUnit.HOURS),
+                buildCache("wikidataRecordings",        500,  4, TimeUnit.HOURS),
+                buildCache("wikidataArtistsForRecording", 2000, 4, TimeUnit.HOURS),
+                buildCache("bandMembers",               500, 24, TimeUnit.HOURS),
+                buildCache("lastfmArtistSearch",        500, 30, TimeUnit.MINUTES),
+                buildCache("lastfmListeners",          1000,  2, TimeUnit.HOURS),
+                buildCache("lastfmPlaycount",          1000,  2, TimeUnit.HOURS)
             ));
         return manager;
     }
